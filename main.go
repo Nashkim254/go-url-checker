@@ -32,7 +32,10 @@ func UrlChecker(urls []string) {
 func CheckUrl(url string, wg *sync.WaitGroup) {
 	defer wg.Done()
 	start := time.Now()
-	response, err := http.Get(url)
+	client := http.Client{
+		Timeout: 5 * time.Second,
+	}
+	response, err := client.Get(url)
 	elapsed := time.Since(start)
 	if err != nil {
 		fmt.Printf("[ERROR] %s: %v\n", url, err)
