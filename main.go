@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -19,12 +20,17 @@ func main() {
 }
 
 func UrlChecker(urls []string) {
+	wg := new(sync.WaitGroup)
 	for _, url := range urls {
-	go	CheckUrl(url)
+		wg.Add(1)
+		go CheckUrl(url, wg)
+
 	}
+	wg.Wait()
 }
 
-func CheckUrl(url string) {
+func CheckUrl(url string, wg *sync.WaitGroup) {
+	defer wg.Done()
 	start := time.Now()
 	response, err := http.Get(url)
 	elapsed := time.Since(start)
