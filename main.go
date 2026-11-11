@@ -15,17 +15,37 @@ func main() {
 		"https://golang.org",
 		"https://stackoverflow.com",
 		"https://reddit.com",
+		"https://wikipedia.org",
+		"https://youtube.com",
+		"https://amazon.com",
+		"https://microsoft.com",
+		"https://apple.com",
+		"https://cloudflare.com",
+		"https://mozilla.org",
+		"https://python.org",
+		"https://rust-lang.org",
+		"https://nodejs.org",
+		"https://docker.com",
+		"https://kubernetes.io",
+		"https://npmjs.com",
+		"https://medium.com",
+		"https://news.ycombinator.com",
 	}
-	UrlChecker(urls)
+	UrlChecker(urls, 5)
 }
 
-func UrlChecker(urls []string) {
-	wg := new(sync.WaitGroup)
-	for _, url := range urls {
+func UrlChecker(urls []string, numWorkers int) {
+	jobs := make(chan string, len(urls))
+	var wg sync.WaitGroup
+	for i := 1; i <= numWorkers; i++ {
 		wg.Add(1)
-		go CheckUrl(url, wg)
+		go Worker(i, jobs, &wg)
 
 	}
+	for _, url := range urls {
+		jobs <- url
+	}
+	close(jobs)
 	wg.Wait()
 }
 
@@ -44,4 +64,14 @@ func CheckUrl(url string, wg *sync.WaitGroup) {
 	defer response.Body.Close()
 
 	fmt.Printf("[OK] %s - Status: %d - Time: %s\n", url, response.StatusCode, elapsed)
+}
+
+func Worker(id int, jobs <-chan string, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	for url := range jobs {
+		fmt.Printf("Worker %d checking %s\n", id, url)
+		CheckUrl(url, wg)
+	}
+
 }
