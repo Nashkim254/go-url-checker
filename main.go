@@ -49,11 +49,17 @@ func UrlChecker(urls []string, numWorkers int) {
 	jobs := make(chan string, len(urls))
 	results := make(chan Result)
 
+	// One client shared by all workers. It's safe for concurrent use
+	// and reuses connections between requests.
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+	}
+
 	// 1. Start the workers (Add before anyone calls Wait).
 	var wg sync.WaitGroup
 	for i := 1; i <= numWorkers; i++ {
 		wg.Add(1)
-		go Worker(i, jobs, results, &wg)
+		go Worker(i, client, jobs, results, &wg)
 	}
 
 	// 2. Queue all the jobs. jobs is buffered, so this doesn't block.
@@ -78,11 +84,8 @@ func UrlChecker(urls []string, numWorkers int) {
 	}
 }
 
-func CheckUrl(url string) Result {
+func CheckUrl(client *http.Client, url string) Result {
 	start := time.Now()
-	client := http.Client{
-		Timeout: 5 * time.Second,
-	}
 	response, err := client.Get(url)
 	elapsed := time.Since(start)
 	if err != nil {
@@ -93,10 +96,10 @@ func CheckUrl(url string) Result {
 	return Result{URL: url, Status: response.StatusCode, Elapsed: elapsed}
 }
 
-func Worker(id int, jobs <-chan string, results chan<- Result, wg *sync.WaitGroup) {
+func Worker(id int, client *http.Client, jobs <-chan string, results chan<- Result, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	for url := range jobs {
-		results <- CheckUrl(url)
+		results <- CheckUrl(client, url)
 	}
 }
