@@ -31,7 +31,11 @@ func main() {
 		"https://medium.com",
 		"https://news.ycombinator.com",
 	}
-	UrlChecker(urls, 5)
+	for _, n := range []int{1, 5, 10, 20} {
+		start := time.Now()
+		UrlChecker(urls, n)
+		fmt.Printf("=== workers=%d took %s ===\n\n", n, time.Since(start))
+	}
 }
 
 func UrlChecker(urls []string, numWorkers int) {
@@ -49,8 +53,7 @@ func UrlChecker(urls []string, numWorkers int) {
 	wg.Wait()
 }
 
-func CheckUrl(url string, wg *sync.WaitGroup) {
-	defer wg.Done()
+func CheckUrl(url string) {
 	start := time.Now()
 	client := http.Client{
 		Timeout: 5 * time.Second,
@@ -71,7 +74,7 @@ func Worker(id int, jobs <-chan string, wg *sync.WaitGroup) {
 
 	for url := range jobs {
 		fmt.Printf("Worker %d checking %s\n", id, url)
-		CheckUrl(url, wg)
+		CheckUrl(url)
 	}
 
 }
