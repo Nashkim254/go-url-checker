@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+type Result struct {
+	URL     string
+	Status  int
+	Elapsed time.Duration
+	Err     error
+}
+
 func main() {
 	fmt.Println("Hello URLs")
 	urls := []string{
@@ -40,20 +47,38 @@ func main() {
 
 func UrlChecker(urls []string, numWorkers int) {
 	jobs := make(chan string, len(urls))
+	results := make(chan Result)
+
+	// 1. Start the workers (Add before anyone calls Wait).
 	var wg sync.WaitGroup
 	for i := 1; i <= numWorkers; i++ {
 		wg.Add(1)
-		go Worker(i, jobs, &wg)
-
+		go Worker(i, jobs, results, &wg)
 	}
+
+	// 2. Queue all the jobs. jobs is buffered, so this doesn't block.
 	for _, url := range urls {
 		jobs <- url
 	}
 	close(jobs)
-	wg.Wait()
+
+	// 3. Close results once every worker has finished sending.
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	// 4. Collect results. The loop ends when results is closed.
+	for r := range results {
+		if r.Err != nil {
+			fmt.Printf("[ERROR] %s: %v\n", r.URL, r.Err)
+			continue
+		}
+		fmt.Printf("[OK] %s - Status: %d - Time: %s\n", r.URL, r.Status, r.Elapsed)
+	}
 }
 
-func CheckUrl(url string) {
+func CheckUrl(url string) Result {
 	start := time.Now()
 	client := http.Client{
 		Timeout: 5 * time.Second,
@@ -61,20 +86,17 @@ func CheckUrl(url string) {
 	response, err := client.Get(url)
 	elapsed := time.Since(start)
 	if err != nil {
-		fmt.Printf("[ERROR] %s: %v\n", url, err)
-		return
+		return Result{URL: url, Elapsed: elapsed, Err: err}
 	}
 	defer response.Body.Close()
 
-	fmt.Printf("[OK] %s - Status: %d - Time: %s\n", url, response.StatusCode, elapsed)
+	return Result{URL: url, Status: response.StatusCode, Elapsed: elapsed}
 }
 
-func Worker(id int, jobs <-chan string, wg *sync.WaitGroup) {
+func Worker(id int, jobs <-chan string, results chan<- Result, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	for url := range jobs {
-		fmt.Printf("Worker %d checking %s\n", id, url)
-		CheckUrl(url)
+		results <- CheckUrl(url)
 	}
-
 }
